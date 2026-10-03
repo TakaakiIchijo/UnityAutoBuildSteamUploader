@@ -18,8 +18,6 @@ using UnityEditor.Toolbars;
 
 public class SteamAutoPublisher : EditorWindow
 {
-    // リリース済みアプリの public ブランチ変更では、承認するアカウントのSteamIDが必須
-    
     // --- 設定項目 ---
     // Steamworks SDKのルート（この下に tools/ContentBuilder がある）
     private string steamSdkPath = @"C:\SteamSDK";
@@ -31,17 +29,6 @@ public class SteamAutoPublisher : EditorWindow
     private string steamPassword = "";
     private string targetBranch = "beta";
     private string publisherApiKey = "YOUR_PUBLISHER_WEB_API_KEY";
-    
- /* ISteamPublisherService 用キー
-1. Steamworks パートナーサイト に管理者アカウントでログインします。
-2. 画面上部メニューの 「ユーザーと権限（Users & Permissions）」 から 「グループ管理（Manage Groups）」 を選択します。
-3. 既存のグループ（該当のApp ID/ゲームが含まれているグループ）を選択するか、必要に応じて「Web API管理用」の新しいグループを作成します。
-    • 注意: キーはそのグループに紐づくすべてのゲームにアクセスできるようになるため、セキュリティ上、アプリごとにグループを分けることが推奨されています。
-4. グループの個別ページに移動したら、画面内（または右側サイドバー）にある 「WebAPIキーの作成（Create WebAPI Key）」 をクリックします。
-5. 必要な権限（Permissions）の選択を求められます。今回の自動ビルド設定（SetAppBranchBuild）を行うには、基本権限である 「General」 または 「General API」（もしくは該当するアプリ編集権限）にチェックを入れて保存します。
-6. 変更を保存すると、そのグループのページ（右側サイドバーなど）に 32文字のパブリッシャーWeb APIキー が生成・表示されます。これをコピーしてUnityツールの設定欄に貼り付けます。
-*
-*/    
 
     // --- 追加された設定項目 ---
     private string customBuildPath = ""; 
