@@ -1,24 +1,13 @@
-# UnityAutoBuildSteamUploader
-
-Automated Steam build publisher for Unity. This editor tool builds a Windows executable, uploads it to Steam Pipe via Steamworks SDK and `steamcmd`, and then updates the target Steam branch using the Steam Publisher Web API.
-
-This repository contains a Unity editor script for automated Steam publishing and a small preference helper for securely storing credentials locally.
-
----
-
-## 日本語 / Japanese
-
+# Unity Auto Build Steam Uploader
 ### 概要
-`SteamAutoPublisher.cs` は Unity Editor 上で動作する `EditorWindow` です。Unity プロジェクトをビルドし、その実行ファイルを Steam にアップロードし、対象ブランチに配信する一連の処理を自動化します。
+Unity EditorからビルドをSteam にアップロード・デポを対象ブランチに配信する一連の処理を自動化します。
 
-主な機能:
+機能:
 - Unity ゲーム本体の Windows x64 ビルドを実行
-- Steamworks SDK の `tools/ContentBuilder` と `steamcmd.exe` を利用してアップロード
-- `SetAppBuildLive` により Steam のブランチを更新
-- ビルド説明として最新 git コミットメッセージを利用
-- 既存のビルド出力ディレクトリを直接アップロード可能
+- Steamworks SDK を利用してSteamサーバーにビルドをアップロード
+- 指定のSteamのブランチにデポを割り当て、ビルド説明として最新 git コミットメッセージを利用
 - `Build Profile` を利用したビルドにも対応（Unity 2021.2 以降）
-- パスワードや API キーはローカル PC の `EditorPrefs` に保存し、Windows では DPAPI で暗号化
+- Steamパスワードや API キーはローカル PC の `EditorPrefs` に保存し、Windows では DPAPI で暗号化
 
 ### 必要な準備
 1. Steamworks SDK をダウンロードしておく
@@ -74,19 +63,16 @@ This repository contains a Unity editor script for automated Steam publishing an
 
 ---
 
-## English / 英語
+## English
 
-### Overview
-`SteamAutoPublisher.cs` is a Unity `EditorWindow` that automates the full Steam publishing workflow inside the Unity editor. It builds a Windows executable, uploads it to Steam Pipe through the Steamworks SDK and `steamcmd`, and updates the target branch using the Steam Publisher Web API.
+Automates the entire process of building the game from the Unity Editor, uploading the build to Steam, and deploying the depot to the target branch.
 
-Main features:
-- Builds the Unity game as a Windows x64 executable
-- Uploads content using the Steamworks SDK `tools/ContentBuilder` and `steamcmd.exe`
-- Updates a Steam branch with `SetAppBuildLive`
-- Uses the latest git commit message as the build description
-- Supports uploading an existing build output folder without rebuilding
-- Supports build profile-based builds on Unity 2021.2 and later
-- Stores credentials locally in `EditorPrefs` and encrypts secrets with Windows DPAPI when available
+Features:
+- Executes a Windows x64 build of the Unity game.
+- Uploads the build to Steam servers using the Steamworks SDK.
+- Assigns the depot to a specified Steam branch and uses the latest Git commit message as the build description.
+- Supports builds using `Build Profile` (Unity 2021.2 or later).
+- Stores Steam passwords and API keys in the local PC's `EditorPrefs`, encrypted via DPAPI on Windows.
 
 ### Requirements
 1. Download and install the Steamworks SDK
