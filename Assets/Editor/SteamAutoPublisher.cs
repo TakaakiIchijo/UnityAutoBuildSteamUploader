@@ -20,14 +20,16 @@ public class SteamAutoPublisher : EditorWindow
 {
     // --- 設定項目 ---
     // Steamworks SDKのルート（この下に tools/ContentBuilder がある）
-    private string steamSdkPath = @"C:\SteamSDK";
+    private string steamSdkPath = DefaultSteamSdkPath();
     private string appId = "YOUR_APP_ID";
-    // 空の場合は AppID + 1（Steamworksで最初に作られるデポ）を使う
+    // Windows で空の場合は AppID + 1（Steamworksで最初に作られるデポ）を使う。macOS では mac 用デポの指定が必須
     private string depotId = "";
     private string steamUsername = "YOUR_STEAM_USERNAME";
     // 空の場合は steamcmd にキャッシュされたログイン情報を使う
     private string steamPassword = "";
     private string targetBranch = "beta";
+    // オンの場合、最新コミットのメッセージ（1行目）と短縮ハッシュをビルドの説明にする
+    private bool useCommitMessageAsDescription = true;
     private string publisherApiKey = "YOUR_PUBLISHER_WEB_API_KEY";
 
     // --- 追加された設定項目 ---
@@ -35,6 +37,16 @@ public class SteamAutoPublisher : EditorWindow
 #if UNITY_2021_2_OR_NEWER
     private BuildProfile selectedBuildProfile;
 #endif
+
+    // macOS のエディタでは macOS 向けにビルドし、SDK の builder_osx の steamcmd を使う
+    private static bool IsMacEditor => Application.platform == RuntimePlatform.OSXEditor;
+
+    private static string DefaultSteamSdkPath()
+    {
+        return IsMacEditor
+            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "SteamSDK")
+            : @"C:\SteamSDK";
+    }
 
     [MenuItem("Tools/Steam Auto Publisher")]
     public static void ShowWindow()
@@ -92,6 +104,7 @@ public class SteamAutoPublisher : EditorWindow
         depotId = SteamAutoPublisherPrefs.GetString(nameof(depotId), depotId);
         steamUsername = SteamAutoPublisherPrefs.GetString(nameof(steamUsername), steamUsername);
         targetBranch = SteamAutoPublisherPrefs.GetString(nameof(targetBranch), targetBranch);
+        useCommitMessageAsDescription = SteamAutoPublisherPrefs.GetBool(nameof(useCommitMessageAsDescription), useCommitMessageAsDescription);
         customBuildPath = SteamAutoPublisherPrefs.GetString(nameof(customBuildPath), customBuildPath);
         steamPassword = SteamAutoPublisherPrefs.GetSecret(nameof(steamPassword));
         publisherApiKey = SteamAutoPublisherPrefs.GetSecret(nameof(publisherApiKey));
@@ -108,6 +121,7 @@ public class SteamAutoPublisher : EditorWindow
         SteamAutoPublisherPrefs.SetString(nameof(depotId), depotId);
         SteamAutoPublisherPrefs.SetString(nameof(steamUsername), steamUsername);
         SteamAutoPublisherPrefs.SetString(nameof(targetBranch), targetBranch);
+        SteamAutoPublisherPrefs.SetBool(nameof(useCommitMessageAsDescription), useCommitMessageAsDescription);
         SteamAutoPublisherPrefs.SetString(nameof(customBuildPath), customBuildPath);
         SteamAutoPublisherPrefs.SetSecret(nameof(steamPassword), steamPassword);
         SteamAutoPublisherPrefs.SetSecret(nameof(publisherApiKey), publisherApiKey);
@@ -133,7 +147,9 @@ public class SteamAutoPublisher : EditorWindow
         steamSdkPath = EditorGUILayout.TextField("Steamworks SDK Path", steamSdkPath);
         appId = EditorGUILayout.TextField("Steam App ID", appId);
         depotId = EditorGUILayout.TextField(
-            new GUIContent("Steam Depot ID", "空の場合は App ID + 1 を使用します"),
+            IsMacEditor
+                ? new GUIContent("Steam Depot ID (macOS)", "macOS 用デポのIDを指定してください（Windows 用デポに上書きしないため必須）")
+                : new GUIContent("Steam Depot ID", "空の場合は App ID + 1 を使用します"),
             depotId);
         steamUsername = EditorGUILayout.TextField("Steam Username", steamUsername);
         steamPassword = EditorGUILayout.PasswordField(
@@ -143,6 +159,9 @@ public class SteamAutoPublisher : EditorWindow
             new GUIContent("Target Branch", "デフォルトブランチは public（default も可）"),
             targetBranch);
         publisherApiKey = EditorGUILayout.PasswordField("Publisher Web API Key", publisherApiKey);
+        useCommitMessageAsDescription = EditorGUILayout.Toggle(
+            new GUIContent("最新コミットをビルドの説明にする", "最新コミットのメッセージ（1行目）と短縮ハッシュを使用します。オフの場合は製品名とバージョン"),
+            useCommitMessageAsDescription);
 
         EditorGUILayout.Space(10);
         GUILayout.Label("ビルド・プロファイル設定", EditorStyles.boldLabel);
@@ -259,8 +278,10 @@ public class SteamAutoPublisher : EditorWindow
             return null;
         }
 
-        string exePath = Path.Combine(customBuildPath, Application.productName + ".exe");
-        UnityEngine.Debug.Log($"Unityビルドを開始します... 出力先: {exePath}");
+        // macOS ではアプリバンドル（.app）、Windows では .exe を出力する
+        BuildTarget buildTarget = IsMacEditor ? BuildTarget.StandaloneOSX : BuildTarget.StandaloneWindows64;
+        string exePath = Path.Combine(customBuildPath, Application.productName + (IsMacEditor ? ".app" : ".exe"));
+        UnityEngine.Debug.Log($"Unityビルドを開始します（{buildTarget}）... 出力先: {exePath}");
 
         BuildReport report;
 
@@ -288,7 +309,7 @@ public class SteamAutoPublisher : EditorWindow
             BuildPlayerOptions buildPlayerOptions = new BuildPlayerOptions();
             buildPlayerOptions.scenes = GetScenePaths();
             buildPlayerOptions.locationPathName = exePath;
-            buildPlayerOptions.target = BuildTarget.StandaloneWindows64;
+            buildPlayerOptions.target = buildTarget;
             buildPlayerOptions.options = BuildOptions.None;
 
             report = BuildPipeline.BuildPlayer(buildPlayerOptions);
@@ -314,11 +335,13 @@ public class SteamAutoPublisher : EditorWindow
         var tcs = new TaskCompletionSource<int>();
 
         string contentBuilderPath = Path.Combine(steamSdkPath, "tools", "ContentBuilder");
-        string steamCmdExe = Path.Combine(contentBuilderPath, "builder", "steamcmd.exe");
+        string steamCmdExe = IsMacEditor
+            ? Path.Combine(contentBuilderPath, "builder_osx", "steamcmd.sh")
+            : Path.Combine(contentBuilderPath, "builder", "steamcmd.exe");
 
         if (!File.Exists(steamCmdExe))
         {
-            UnityEngine.Debug.LogError($"steamcmd.exe が見つかりません。Steamworks SDK Path を確認してください: {steamCmdExe}");
+            UnityEngine.Debug.LogError($"steamcmd が見つかりません。Steamworks SDK Path を確認してください: {steamCmdExe}");
             tcs.SetResult(0);
             return tcs.Task;
         }
@@ -344,15 +367,16 @@ public class SteamAutoPublisher : EditorWindow
             : $"+login \"{steamUsername}\" \"{steamPassword}\"";
         string arguments = $"{login} +run_app_build \"{appVdfPath}\" +quit";
 
-        ProcessStartInfo processInfo = new ProcessStartInfo(steamCmdExe, arguments)
-        {
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            CreateNoWindow = true,
-            StandardOutputEncoding = Encoding.UTF8, 
-            StandardErrorEncoding = Encoding.UTF8
-        };
+        // macOS の steamcmd.sh は実行権限が無い場合（Windowsで展開したSDKなど）があるため bash 経由で起動する
+        ProcessStartInfo processInfo = IsMacEditor
+            ? new ProcessStartInfo("/bin/bash", $"\"{steamCmdExe}\" {arguments}")
+            : new ProcessStartInfo(steamCmdExe, arguments);
+        processInfo.UseShellExecute = false;
+        processInfo.RedirectStandardOutput = true;
+        processInfo.RedirectStandardError = true;
+        processInfo.CreateNoWindow = true;
+        processInfo.StandardOutputEncoding = Encoding.UTF8;
+        processInfo.StandardErrorEncoding = Encoding.UTF8;
 
         Process process = new Process { StartInfo = processInfo };
         int extractedBuildId = 0;
@@ -404,11 +428,14 @@ public class SteamAutoPublisher : EditorWindow
     private static readonly Regex DescPattern = new Regex("(\"Desc\"\\s*\")[^\"]*(\")", RegexOptions.IgnoreCase);
 
     /// <summary>
-    /// 最新コミットのメッセージ（1行目）と短縮ハッシュをビルドの説明にする。git が使えない場合は製品名とバージョン。
+    /// 最新コミットのメッセージ（1行目）と短縮ハッシュをビルドの説明にする。
+    /// オプションがオフ、または git が使えない場合は製品名とバージョン。
     /// </summary>
-    private static string GetBuildDescription()
+    private string GetBuildDescription()
     {
         string fallback = $"{Application.productName} {Application.version}";
+        if (!useCommitMessageAsDescription) return fallback;
+
         try
         {
             var gitInfo = new ProcessStartInfo("git", "log -1 --format=\"%s (%h)\"")
@@ -445,6 +472,8 @@ public class SteamAutoPublisher : EditorWindow
     private string ResolveDepotId()
     {
         if (!string.IsNullOrWhiteSpace(depotId)) return depotId.Trim();
+        // AppID + 1 は通常 Windows 用デポのため、macOS では推測しない
+        if (IsMacEditor) return null;
         return long.TryParse(appId, out long id) ? (id + 1).ToString() : null;
     }
 
@@ -463,14 +492,17 @@ public class SteamAutoPublisher : EditorWindow
 
         // VDF内のバックスラッシュはエスケープ扱いになり得るため、スラッシュ区切りの絶対パスで書く
         string contentRoot = Path.GetFullPath(buildFolder).Replace('\\', '/').TrimEnd('/') + "/";
-        string appVdfPath = Path.Combine(scriptsFolder, $"app_{appId}.vdf");
+        // macOS 用は別ファイルにし、SDK フォルダを共有していても Windows 用のデポ設定と混ざらないようにする
+        string appVdfPath = Path.Combine(scriptsFolder, IsMacEditor ? $"app_{appId}_osx.vdf" : $"app_{appId}.vdf");
 
         if (!File.Exists(appVdfPath))
         {
             string resolvedDepotId = ResolveDepotId();
             if (resolvedDepotId == null)
             {
-                UnityEngine.Debug.LogError("Steam Depot ID を決定できません。");
+                UnityEngine.Debug.LogError(IsMacEditor
+                    ? "macOS 用の Steam Depot ID を指定してください。"
+                    : "Steam Depot ID を決定できません。");
                 return null;
             }
 
