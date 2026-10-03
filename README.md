@@ -57,9 +57,9 @@ Unity EditorからビルドをSteam にアップロード・デポを対象ブ�
 
 ### 注意点
 - `SteamPassword` と `Publisher Web API Key` は環境によっては暗号化保存ができない場合がある
-- Windows 環境でないと `DPAPI` を使えないため、秘密情報の保存は利用できないことがある
-- `steamcmd` で一度手動ログイン済みであれば、パスワード欄を空にしてログイン情報を利用する方法もある
+- DPAPIによる秘密情報の保存はwindowsのみ利用できないことがある
 - Steam のブランチ更新には承認待ちが発生する場合があり、Steam モバイルアプリで承認が必要になることがある
+- リリース済みアプリの public ブランチ変更では、承認するアカウントのSteamIDが必須、未検証
 
 ## 付録
 ### ISteamPublisherService 用キーの発行方法
